@@ -1,0 +1,164 @@
+CREATE OR REPLACE PROCEDURE PRIVATE.AUTO_CREATING_AMBULATORIALE
+IS
+	--Variabili
+	v_Year NUMBER;
+	v_Semester NUMBER;
+	v_Semestre NUMBER;
+  	v_Last_Id NUMBER;
+  	v_Last_Id_Stato NUMBER;
+  	v_Cod_Azienda NUMBER;
+  	v_Cod_Struttura NUMBER;
+  	v_Controllo_Amb NUMBER;
+	v_Anno NUMBER;
+	v_Primo_Semestre NUMBER;
+  	v_Secondo_Semestre NUMBER;
+  	v_Esiste NUMBER;
+  	v_Id_Cont NUMBER;
+  	v_Cont NUMBER;
+  	v_AnnoPrec NUMBER;
+  	v_SemestreMenoUno NUMBER;
+  	v_AnnoInVal NUMBER;
+  	v_AnnoFiVal NUMBER;
+  	v_DataInVal NUMBER;
+  	v_DataFiVal NUMBER;
+BEGIN
+	DBMS_OUTPUT.PUT_LINE('Starta il codice');
+	SELECT EXTRACT(MONTH FROM SYSDATE) INTO v_Semestre FROM DUAL;
+	--Imposto Primo Semestre
+	IF v_Semestre = 1 THEN 
+		v_Primo_Semestre := 1;
+	ELSE 
+		v_Primo_Semestre := NULL;
+	END IF;
+	--Imposto Secondo Semestre
+	IF v_Semestre = 6 THEN 
+		v_Secondo_Semestre := 2;
+	ELSE
+		v_Secondo_Semestre := NULL;
+	END IF;
+	--Ricavo l'ultimo id su cui lavorare
+	SELECT MAX(Id) INTO v_Last_Id FROM AMBULATORIALE;
+	--Ricavo l'ultimo id stato su cui lavorare
+	SELECT MAX(Id) INTO v_Last_Id_Stato FROM AMBULATORIALE_STATO;
+	--Ricavo l'ultimo anno inserito
+	SELECT ANNO INTO v_Year FROM AMBULATORIALE WHERE (ID = v_Last_Id);
+	--Ricavo l'ultimo semestre inserito
+	SELECT SEMESTRE INTO v_Semester FROM AMBULATORIALE WHERE (ID = v_Last_ID);
+	--Imposto in una variabile l'anno corrente
+	SELECT EXTRACT(YEAR FROM SYSDATE) INTO v_Anno FROM DUAL;
+	--Imposto in una variabile l'anno -1
+	SELECT EXTRACT(YEAR FROM SYSDATE)-1 INTO v_AnnoPrec FROM DUAL;
+	---
+	--Controllo se esiste il report dell'anno precedente E controllo il secondo semestre
+	IF ((v_AnnoPrec = v_Year) AND (v_Semester != 6)) THEN
+	DBMS_OUTPUT.PUT_LINE('Anno precedente e non c è il secondo semestre');
+		--Controllo se esiste il report dell'anno precedente E controllo il primo semestre E il primo semestre non è nullo
+		IF ((v_AnnoPrec = v_Year) AND (v_Semester != 1)) THEN
+		DBMS_OUTPUT.PUT_LINE('Anno precedente e non c è il primo semestre');
+			---
+			--Ciclo tutte le righe della tabella STRUTTURA_AZIENDA
+			FOR rec IN(SELECT s.COD_AZIENDA, s.COD_ISTITUTO_ESTESO, s.DATA_IN_VAL, s.DATA_FI_VAL, s.FL_AMBULATORIALE
+					   FROM STRUTTURA_AZIENDA s)
+			LOOP 
+				--estraggo l'anno dalla data di inizio validità
+				SELECT EXTRACT(YEAR FROM x.DATA_IN_VAL) INTO v_DataInVal FROM STRUTTURA_AZIENDA x WHERE COD_ISTITUTO_ESTESO = rec.COD_ISTITUTO_ESTESO;
+				--estraggo l'anno dalla data di fine validità
+				SELECT EXTRACT(YEAR FROM z.DATA_FI_VAL) INTO v_DataFiVal FROM STRUTTURA_AZIENDA z WHERE COD_ISTITUTO_ESTESO = rec.COD_ISTITUTO_ESTESO;
+				--Se l'anno è compreso tra anno inizio validità E anno fine validità
+				IF (v_AnnoPrec >= v_DataInVal AND v_AnnoPrec <= v_DataFiVal) THEN
+					--Se il campo FL_AMBULATORIALE è uguale a 1
+					IF (rec.FL_AMBULATORIALE = 1) THEN
+						--Uppo l'ultimo id di AMBULATORIALE
+						v_Last_Id := v_Last_Id + 1;
+						--Uppo l'ultimo id di AMBULATORIALE_STATO
+						v_Last_Id_Stato := v_Last_Id_Stato + 1;
+						--Faccio la INSERT di AMBULATORIALE per il primo semestre
+						INSERT INTO AMBULATORIALE (ID, COD_AZIENDA, COD_STRUTTURA, FK_TIPO_CONTROLLO, ANNO, SEMESTRE, TIMESTAMP_INS, UTENTE_INS)
+						VALUES (v_Last_Id, rec.COD_AZIENDA, rec.COD_ISTITUTO_ESTESO, 'I', v_Year, v_Primo_Semestre, SYSDATE, 'AUTO CREATED');
+						--Faccio la INSERT di AMBULATORIALE_STATO per il primo semestre
+						INSERT INTO AMBULATORIALE_STATO(ID, FK_AMBULATORIALE, FK_STATO_REPORT, ATTIVO)
+						VALUES (v_Last_Id_Stato, v_Last_Id, 1, 1);
+						--Uppo l'ultimo id di AMBULATORIALE
+						v_Last_Id := v_Last_Id + 1;
+						--Uppo l'ultimo id di AMBULATORIALE_STATO
+						v_Last_Id_Stato := v_Last_Id_Stato + 1;
+						--Faccio la INSERT di AMBULATORIALE per il secondo semestre
+						INSERT INTO AMBULATORIALE (ID, COD_AZIENDA, COD_STRUTTURA, FK_TIPO_CONTROLLO, ANNO, SEMESTRE, TIMESTAMP_INS, UTENTE_INS)
+						VALUES (v_Last_Id, rec.COD_AZIENDA, rec.COD_ISTITUTO_ESTESO, 'I', v_Year, v_Secondo_Semestre, SYSDATE, 'AUTO CREATED');
+						--Faccio la INSERT di AMBULATORIALE_STATO per il secondo semestre
+						INSERT INTO AMBULATORIALE_STATO(ID, FK_AMBULATORIALE, FK_STATO_REPORT, ATTIVO)
+						VALUES (v_Last_Id_Stato, v_Last_Id, 1, 1);	
+						COMMIT;
+					END IF;
+				END IF;
+		    END LOOP;
+			---
+		--Se il primo semestre è già stato inserito
+		ELSE
+			DBMS_OUTPUT.PUT_LINE('Anno precedente e il secondo semestre non è nullo');
+			---
+			--Ciclo tutte le righe della tabella STRUTTURA_AZIENDA
+			FOR rec IN(SELECT s.COD_AZIENDA, s.COD_ISTITUTO_ESTESO, s.DATA_IN_VAL, s.DATA_FI_VAL, s.FL_AMBULATORIALE
+					   FROM STRUTTURA_AZIENDA s)
+			LOOP 
+				--estraggo l'anno dalla data di inizio validità
+				SELECT EXTRACT(YEAR FROM x.DATA_IN_VAL) INTO v_DataInVal FROM STRUTTURA_AZIENDA x WHERE COD_ISTITUTO_ESTESO = rec.COD_ISTITUTO_ESTESO;
+				--estraggo l'anno dalla data di fine validità
+				SELECT EXTRACT(YEAR FROM z.DATA_FI_VAL) INTO v_DataFiVal FROM STRUTTURA_AZIENDA z WHERE COD_ISTITUTO_ESTESO = rec.COD_ISTITUTO_ESTESO;
+				--Se l'anno è compreso tra anno inizio validità E anno fine validità
+				IF (v_AnnoPrec >= v_DataInVal AND v_AnnoPrec <= v_DataFiVal) THEN
+					--Se il campo FL_AMBULATORIALE è uguale a 1
+					IF (rec.FL_AMBULATORIALE = 1) THEN
+						v_Last_Id := v_Last_Id + 1;
+						v_Last_Id_Stato := v_Last_Id_Stato + 1;
+						--Faccio la INSERT di AMBULATORIALE per il secondo semestre
+						INSERT INTO AMBULATORIALE (ID, COD_AZIENDA, COD_STRUTTURA, FK_TIPO_CONTROLLO, ANNO, SEMESTRE, TIMESTAMP_INS, UTENTE_INS)
+						VALUES (v_Last_Id, rec.COD_AZIENDA, rec.COD_ISTITUTO_ESTESO, 'I', v_Year, v_Secondo_Semestre, SYSDATE, 'AUTO CREATED');
+						--Faccio la INSERT di AMBULATORIALE_STATO per il secondo semestre
+						INSERT INTO AMBULATORIALE_STATO(ID, FK_AMBULATORIALE, FK_STATO_REPORT, ATTIVO)
+						VALUES (v_Last_Id_Stato, v_Last_Id, 1, 1);	
+						COMMIT;
+					END IF;
+				END IF;
+			END LOOP;
+			   	---
+		END IF;
+	END IF;
+	---
+	--Controllo se esiste il report dell'anno corrente E controllo il secondo semestre
+	IF ((v_Anno = v_Year) AND (v_Secondo_Semestre != v_Semester)) THEN
+	DBMS_OUTPUT.PUT_LINE('Anno corrente e non c è il secondo semestre');
+		--Controllo se esiste il report dell'anno corrente E controllo il primo semestre
+		IF ((v_Anno = v_Year) AND (v_Primo_Semestre = v_Semester)) THEN
+		DBMS_OUTPUT.PUT_LINE('Anno corrente e non c è il primo semestre');
+			---
+			--Ciclo tutte le righe della tabella STRUTTURA_AZIENDA
+			FOR rec IN(SELECT s.COD_AZIENDA, s.COD_ISTITUTO_ESTESO, s.DATA_IN_VAL, s.DATA_FI_VAL, s.FL_AMBULATORIALE
+					   FROM STRUTTURA_AZIENDA s)
+			LOOP 
+				--estraggo l'anno dalla data di inizio validità
+				SELECT EXTRACT(YEAR FROM x.DATA_IN_VAL) INTO v_DataInVal FROM STRUTTURA_AZIENDA x WHERE COD_ISTITUTO_ESTESO = rec.COD_ISTITUTO_ESTESO;
+				--estraggo l'anno dalla data di fine validità
+				SELECT EXTRACT(YEAR FROM z.DATA_FI_VAL) INTO v_DataFiVal FROM STRUTTURA_AZIENDA z WHERE COD_ISTITUTO_ESTESO = rec.COD_ISTITUTO_ESTESO;
+				--Se l'anno è compreso tra anno inizio validità E anno fine validità
+				IF (v_AnnoPrec >= v_DataInVal AND v_AnnoPrec <= v_DataFiVal) THEN
+				DBMS_OUTPUT.PUT_LINE('Siamo nel periodo di validità');
+					--Se il campo FL_AMBULATORIALE è uguale a 1
+					IF (rec.FL_AMBULATORIALE = 1) THEN
+						--Uppo l'ultimo id di AMBULATORIALE
+						v_Last_Id := v_Last_Id + 1;
+						--Uppo l'ultimo id di AMBULATORIALE_STATO
+						v_Last_Id_Stato := v_Last_Id_Stato + 1;
+						--Faccio la INSERT di AMBULATORIALE per il primo semestre
+						INSERT INTO AMBULATORIALE (ID, COD_AZIENDA, COD_STRUTTURA, FK_TIPO_CONTROLLO, ANNO, SEMESTRE, TIMESTAMP_INS, UTENTE_INS)
+						VALUES (v_Last_Id, rec.COD_AZIENDA, rec.COD_ISTITUTO_ESTESO, 'I', v_Year, v_Primo_Semestre, SYSDATE, 'AUTO CREATED');
+						--Faccio la INSERT di AMBULATORIALE_STATO per il primo semestre
+						INSERT INTO AMBULATORIALE_STATO(ID, FK_AMBULATORIALE, FK_STATO_REPORT, ATTIVO)
+						VALUES (v_Last_Id_Stato, v_Last_Id, 1, 1);		
+						COMMIT;
+					END IF;
+				END IF;
+		    END loop;
+		END IF;
+	END IF;
+END AUTO_CREATING_AMBULATORIALE;
