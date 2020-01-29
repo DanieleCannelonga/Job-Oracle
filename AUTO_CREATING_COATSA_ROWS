@@ -1,0 +1,244 @@
+CREATE OR REPLACE PROCEDURE PRIVATE.AUTO_CREATING_COATSA_ROWS
+IS
+v_maxid NUMBER;
+v_maxid_stato NUMBER;
+v_maxid1 NUMBER;
+v_maxid_stato1 NUMBER;
+v_cod_azienda varchar2 (10);
+v_cod_struttura varchar2 (10);
+v_semestre NUMBER;
+v_anno NUMBER;
+v_data DATE;
+v_last_year NUMBER;
+v_last_semester NUMBER;
+BEGIN
+	
+	--Prendo la data corrente
+	SELECT SYSDATE INTO v_data FROM DUAL;
+	--Prendo l'ultimo anno da AMBULATORIALE
+	SELECT MAX(ANNO) INTO v_last_year FROM AMBULATORIALE;
+	--Prendo l'ultimo semestre da AMBULATORIALE
+	SELECT MAX(SEMESTRE) INTO v_last_semester FROM AMBULATORIALE;
+	--Prendo il mese dalla data corrente
+	SELECT EXTRACT(MONTH FROM SYSDATE) INTO v_semestre FROM DUAL;
+	--Prendo l'anno dalla data corrente
+	SELECT EXTRACT(YEAR FROM SYSDATE) INTO v_anno FROM DUAL;
+	--Se siamo nel primo mese
+	IF (v_semestre = 1) THEN
+		--Ciclo per la vista STRUTTURA
+		FOR amb IN(SELECT s.COD_AZIENDA, s.COD_STRUTTURA, s.FL_AMBULATORIALE, s.FL_RICOVERO, s.DATA_IN_VAL, s.DATA_FI_VAL
+						   FROM STRUTTURA s)
+		LOOP 
+			--Se la data corrente è tra la data di inizio validità e fine validità della struttura
+			IF (v_data BETWEEN amb.DATA_IN_VAL AND amb.DATA_FI_VAL) THEN
+				--Se la struttura ha ambulatoriali
+				IF (amb.FL_AMBULATORIALE = 1) THEN
+					--Ciclo per la tabella AMBULATORIALE per controllare se la struttura in questione ha I e/o E
+					FOR am IN (SELECT a.FK_TIPO_CONTROLLO
+								FROM AMBULATORIALE a
+								WHERE a.COD_STRUTTURA = amb.COD_STRUTTURA
+								AND a.FK_TIPO_CONTROLLO IN ('I', 'E')
+								AND a.ANNO = '2019'
+								AND a.SEMESTRE = '1')
+					LOOP
+						--Controllo se l'anno corrente è diverso dall'ultimo anno di AMBULATORIALE
+						IF (v_anno != v_last_year) THEN
+							--Controllo se il tipo di controllo è I
+							IF (am.FK_TIPO_CONTROLLO = 'I') THEN
+								--Prendo l'ultimo id da AMBULATORIALE
+								SELECT MAX(ID) INTO v_maxid FROM AMBULATORIALE;
+								--Prendo l'ultimo id da AMBULATORIALE_STATO
+								SELECT MAX(ID) INTO v_maxid_stato FROM AMBULATORIALE_STATO;
+								--Incremento l'ultimo id di AMBULATORIALE
+								v_maxid := v_maxid +1;
+								--Inserisco la struttura in AMBULATORIALE
+								INSERT INTO AMBULATORIALE (ID, COD_AZIENDA, COD_STRUTTURA, FK_TIPO_CONTROLLO, ANNO, SEMESTRE)
+										VALUES (v_maxid, amb.COD_AZIENDA, amb.COD_STRUTTURA, 'I', v_anno, '1');
+								--Incremento l'ultimo id di AMBULATORIALE_STATO
+								v_maxid_stato := v_maxid_stato +1;
+								--Inserisco la struttura e la attivo in AMBULATORIALE_STATO
+								INSERT INTO AMBULATORIALE_STATO (ID, FK_AMBULATORIALE, FK_STATO_REPORT, ATTIVO)
+										VALUES(v_maxid_stato, v_maxid, 1, 1);
+							END IF;
+							--Controllo se il tipo di controllo è E
+							IF (am.FK_TIPO_CONTROLLO = 'E') THEN
+								--Prendo l'ultimo id da AMBULATORIALE
+								SELECT MAX(ID) INTO v_maxid1 FROM AMBULATORIALE;
+								--Prendo l'ultimo id da AMBULATORIALE_STATO
+								SELECT MAX(ID) INTO v_maxid_stato1 FROM AMBULATORIALE_STATO;
+								--Incremento l'ultimo id di AMBULATORIALE
+								v_maxid1 := v_maxid1 +1;
+								--Inserisco la struttura in AMBULATORIALE
+								INSERT INTO AMBULATORIALE (ID, COD_AZIENDA, COD_STRUTTURA, FK_TIPO_CONTROLLO, ANNO, SEMESTRE)
+										VALUES (v_maxid1, amb.COD_AZIENDA, amb.COD_STRUTTURA, 'E', v_anno, '1');
+								--Incremento l'ultimo id di AMBULATORIALE_STATO
+								v_maxid_stato1 := v_maxid_stato1 +1;
+								--Inserisco la struttura e la attivo in AMBULATORIALE_STATO
+								INSERT INTO AMBULATORIALE_STATO (ID, FK_AMBULATORIALE, FK_STATO_REPORT, ATTIVO)
+										VALUES(v_maxid_stato1, v_maxid1, 1, 1);
+							END IF;
+						END IF;
+					END LOOP;
+				END IF;
+				--Se la struttura ha RICOVERI
+				IF (amb.FL_RICOVERO = 1) THEN
+					--Ciclo per la tabella ricovero per controllare se la struttura in questione ha I e/o E
+					FOR ri IN (SELECT r.FK_TIPO_CONTROLLO
+								FROM RICOVERO r 
+								WHERE r.COD_STRUTTURA = amb.COD_STRUTTURA
+								AND r.FK_TIPO_CONTROLLO IN ('I', 'E') 
+								AND r.ANNO = '2019' 
+								AND r.SEMESTRE = '1')
+					LOOP
+						--Controllo se l'anno corrente è diverso dall'ultimo anno di AMBULATORIALE
+						IF (v_anno != v_last_year) THEN
+							--Controllo se il tipo di controllo è I
+							IF (ri.FK_TIPO_CONTROLLO = 'I') THEN
+								--Prendo l'ultimo id da RICOVERO
+								SELECT MAX(ID) INTO v_maxid FROM RICOVERO;
+								--Prendo l'ultimo id da RICOVERO_STATO
+								SELECT MAX(ID) INTO v_maxid_stato FROM RICOVERO_STATO;
+								--Incremento l'ultimo id di RICOVERO
+								v_maxid := v_maxid +1;
+								--Inserisco la struttura in RICOVERO
+								INSERT INTO RICOVERO (ID, COD_AZIENDA, COD_STRUTTURA, FK_TIPO_CONTROLLO, ANNO, SEMESTRE)
+										VALUES (v_maxid, amb.COD_AZIENDA, amb.COD_STRUTTURA, 'I', v_anno, '1');
+								--Incremento l'ultimo id di RICOVERO_STATO
+								v_maxid_stato := v_maxid_stato +1;
+								--Inserisco la struttura e la attivo in AMBULATORIALE_STATO
+								INSERT INTO RICOVERO_STATO (ID, FK_RICOVERO, FK_STATO_REPORT, ATTIVO)
+										VALUES(v_maxid_stato, v_maxid, 1, 1);
+							END IF;
+							--Controllo se il tipo di controllo è E
+							IF (ri.FK_TIPO_CONTROLLO = 'E') THEN
+								--Prendo l'ultimo id da RICOVERO
+								SELECT MAX(ID) INTO v_maxid1 FROM RICOVERO;
+								--Prendo l'ultimo id da RICOVERO_STATO
+								SELECT MAX(ID) INTO v_maxid_stato1 FROM RICOVERO_STATO;
+								--Incremento l'ultimo id di RICOVERO
+								v_maxid1 := v_maxid1 +1;
+								--Inserisco la struttura in RICOVERO
+								INSERT INTO RICOVERO (ID, COD_AZIENDA, COD_STRUTTURA, FK_TIPO_CONTROLLO, ANNO, SEMESTRE)
+										VALUES (v_maxid1, amb.COD_AZIENDA, amb.COD_STRUTTURA, 'E', v_anno, '1');
+								--Incremento l'ultimo id di RICOVERO_STATO
+								v_maxid_stato1 := v_maxid_stato1 +1;
+								--Inserisco la struttura e la attivo in AMBULATORIALE_STATO
+								INSERT INTO RICOVERO_STATO (ID, FK_RICOVERO, FK_STATO_REPORT, ATTIVO)
+										VALUES(v_maxid_stato1, v_maxid1, 1, 1);
+							END IF;
+						END IF;
+					END LOOP;
+				END IF;
+			END IF;
+		END LOOP;
+	END IF;
+	--Se siamo nel sesto mese
+	IF (v_semestre = 6 AND v_anno = v_last_year) THEN
+		--Ciclo per la vista STRUTTURA
+		FOR amb IN(SELECT s.COD_AZIENDA, s.COD_STRUTTURA, s.FL_AMBULATORIALE, s.FL_RICOVERO, s.DATA_IN_VAL, s.DATA_FI_VAL
+						   FROM STRUTTURA s)
+		LOOP 
+			--Se la data corrente è tra la data di inizio validità e fine validità della struttura
+			IF (v_data BETWEEN amb.DATA_IN_VAL AND amb.DATA_FI_VAL) THEN
+				--Se la struttura ha ambulatoriali
+				IF (amb.FL_AMBULATORIALE = 1) THEN
+					--Ciclo per la tabella AMBULATORIALE per controllare se la struttura in questione ha I e/o E
+					FOR am IN (SELECT a.FK_TIPO_CONTROLLO 
+								FROM AMBULATORIALE a 
+								WHERE a.COD_STRUTTURA = amb.COD_STRUTTURA
+								AND a.FK_TIPO_CONTROLLO IN ('I', 'E') 
+								AND a.ANNO = '2019' 
+								AND a.SEMESTRE = '1')
+					LOOP
+						--Controllo il semestre corrente è diverso dall'ultimo semestre di AMBULATORIALE
+						IF (v_semestre != v_last_semester) THEN
+							--Controllo se il tipo di controllo è I
+							IF (am.FK_TIPO_CONTROLLO = 'I') THEN
+								--Prendo l'ultimo id da AMBULATORIALE
+								SELECT MAX(ID) INTO v_maxid FROM AMBULATORIALE;
+								--Prendo l'ultimo id da AMBULATORIALE_STATO
+								SELECT MAX(ID) INTO v_maxid_stato FROM AMBULATORIALE_STATO;
+								--Incremento l'ultimo id di AMBULATORIALE
+								v_maxid := v_maxid +1;
+								--Inserisco la struttura in AMBULATORIALE
+								INSERT INTO AMBULATORIALE (ID, COD_AZIENDA, COD_STRUTTURA, FK_TIPO_CONTROLLO, ANNO, SEMESTRE)
+										VALUES (v_maxid, amb.COD_AZIENDA, amb.COD_STRUTTURA, 'I', v_anno, '2');
+								--Incremento l'ultimo id di AMBULATORIALE_STATO
+								v_maxid_stato := v_maxid_stato +1;
+								--Inserisco la struttura e la attivo in AMBULATORIALE_STATO
+								INSERT INTO AMBULATORIALE_STATO (ID, FK_AMBULATORIALE, FK_STATO_REPORT, ATTIVO)
+										VALUES(v_maxid_stato, v_maxid, 1, 1);
+							END IF;
+							--Controllo se il tipo di controllo è I
+							IF (am.FK_TIPO_CONTROLLO = 'E') THEN
+								--Prendo l'ultimo id da AMBULATORIALE
+								SELECT MAX(ID) INTO v_maxid1 FROM AMBULATORIALE;
+								--Prendo l'ultimo id da AMBULATORIALE_STATO
+								SELECT MAX(ID) INTO v_maxid_stato1 FROM AMBULATORIALE_STATO;
+								--Incremento l'ultimo id di AMBULATORIALE
+								v_maxid1 := v_maxid1 +1;
+								--Inserisco la struttura in AMBULATORIALE
+								INSERT INTO AMBULATORIALE (ID, COD_AZIENDA, COD_STRUTTURA, FK_TIPO_CONTROLLO, ANNO, SEMESTRE)
+										VALUES (v_maxid1, amb.COD_AZIENDA, amb.COD_STRUTTURA, 'E', v_anno, '2');
+								--Incremento l'ultimo id di AMBULATORIALE_STATO
+								v_maxid_stato1 := v_maxid_stato1 +1;
+								--Inserisco la struttura e la attivo in AMBULATORIALE_STATO
+								INSERT INTO AMBULATORIALE_STATO (ID, FK_AMBULATORIALE, FK_STATO_REPORT, ATTIVO)
+										VALUES(v_maxid_stato1, v_maxid1, 1, 1);
+							END IF;
+						END IF;
+					END LOOP;
+				END IF;
+				--Se la struttura ha ricoveri
+				IF (amb.FL_RICOVERO = 1) THEN
+					--Ciclo per la tabella RICOVERO per controllare se la struttura in questione ha I e/o E
+					FOR ri IN (SELECT r.FK_TIPO_CONTROLLO 
+								FROM RICOVERO r 
+								WHERE r.COD_STRUTTURA = amb.COD_STRUTTURA
+								AND r.FK_TIPO_CONTROLLO IN ('I', 'E') 
+								AND r.ANNO = '2019' 
+								AND r.SEMESTRE = '1')
+					LOOP
+						--Controllo se il semestre corrente è diverso dall'ultimo semestre di RICOVERO
+						IF (v_semestre != v_last_semester) THEN
+							--Controllo se il tipo di controllo è I
+							IF (ri.FK_TIPO_CONTROLLO = 'I') THEN
+								--Prendo l'ultimo id da RICOVERO
+								SELECT MAX(ID) INTO v_maxid FROM RICOVERO;
+								--Prendo l'ultimo id da RICOVERO_STATO
+								SELECT MAX(ID) INTO v_maxid_stato FROM RICOVERO_STATO;
+								--Incremento l'ultimo id di RICOVERO
+								v_maxid := v_maxid +1;
+								--Inserisco la struttura in RICOVERO
+								INSERT INTO RICOVERO (ID, COD_AZIENDA, COD_STRUTTURA, FK_TIPO_CONTROLLO, ANNO, SEMESTRE)
+										VALUES (v_maxid, amb.COD_AZIENDA, amb.COD_STRUTTURA, 'I', v_anno, '2');
+								--Incremento l'ultimo id di RICOVERO_STATO
+								v_maxid_stato := v_maxid_stato +1;
+								--Inserisco la struttura e la attivo in RICOVERO_STATO
+								INSERT INTO RICOVERO_STATO (ID, FK_RICOVERO, FK_STATO_REPORT, ATTIVO)
+										VALUES(v_maxid_stato, v_maxid, 1, 1);
+							END IF;
+							--Controllo se il tipo di controllo è E
+							IF (ri.FK_TIPO_CONTROLLO = 'E') THEN
+								--Prendo l'ultimo id da RICOVERO
+								SELECT MAX(ID) INTO v_maxid1 FROM RICOVERO;
+								--Prendo l'ultimo id da RICOVERO_STATO
+								SELECT MAX(ID) INTO v_maxid_stato1 FROM RICOVERO_STATO;
+								--Incremento l'ultimo id di RICOVERO
+								v_maxid1 := v_maxid1 +1;
+								--Inserisco la struttura in RICOVERO
+								INSERT INTO RICOVERO (ID, COD_AZIENDA, COD_STRUTTURA, FK_TIPO_CONTROLLO, ANNO, SEMESTRE)
+										VALUES (v_maxid1, amb.COD_AZIENDA, amb.COD_STRUTTURA, 'E', v_anno, '2');
+								--Incremento l'ultimo id di RICOVERO_STATO
+								v_maxid_stato1 := v_maxid_stato1 +1;
+								--Inserisco la struttura e la attivo in RICOVERO_STATO
+								INSERT INTO RICOVERO_STATO (ID, FK_RICOVERO, FK_STATO_REPORT, ATTIVO)
+										VALUES(v_maxid_stato1, v_maxid1, 1, 1);
+							END IF;
+						END IF;
+					END LOOP;
+				END IF;
+			END IF;
+		END LOOP;
+	END IF;
+END;
